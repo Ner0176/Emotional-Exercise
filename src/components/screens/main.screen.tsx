@@ -1,66 +1,27 @@
 import { Box } from "@mui/material";
 import MainHeader from "../molecules/main-header.molecule";
 import MainContent from "../molecules/main-content.molecule";
-import { useEffect, useState } from "react";
-import { ICardData } from "../../interfaces/card-data.interfaces";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import cardData from "../../assets/data";
 import { OrderType } from "../../interfaces/filters.interfaces";
-import moment from "moment";
+import { handleOrderLogic } from "../../assets/functions";
 
 const MainScreen = () => {
   const [filter, setFilter] = useState<string>("");
   const [orderDirection, setOrderDirection] = useState<OrderType>("desc");
   const [orderOption, setOrderOption] = useState<number>(0);
-  const [filteredData, setFilteredData] = useState<ICardData[]>([]);
-  const [slicedData, setSlicedData] = useState<ICardData[]>([]);
-
-  const [currentPage, setCurrentPage] = useState<number>(0);
-  const [numberPages, setNumberPages] = useState<number>(0);
+  const [currentPage, setCurrentPage] = useState<number>(1);
   const numberItems = 3;
 
-  useEffect(() => {
+  const filteredData = useMemo(() => {
     let filteredDataCopy = cardData;
     if (!!filter) {
       filteredDataCopy = cardData.filter((item) =>
         item.title.toLowerCase().includes(filter.toLowerCase())
       );
     }
-
-    const orderedData = handleOrderLogic(filteredDataCopy);
-
-    setFilteredData(orderedData);
-    setSlicedData(orderedData.slice(0, numberItems));
-    setNumberPages(getNumberPages(orderedData.length));
-    setCurrentPage(1);
+    return handleOrderLogic(filteredDataCopy, orderDirection, orderOption);
   }, [filter, orderOption, orderDirection]);
-
-  const handleOrderLogic = (data: ICardData[]) => {
-    const sortingFunctions = [
-      function compareDates(a: ICardData, b: ICardData) {
-        const formattedA = moment(a.createdAt, "DD/MM/YYYY").toDate().getTime();
-        const formattedB = moment(b.createdAt, "DD/MM/YYYY").toDate().getTime();
-        return orderDirection === "asc"
-          ? formattedA - formattedB
-          : formattedB - formattedA;
-      },
-      function compareTitle(a: ICardData, b: ICardData) {
-        return orderDirection === "asc"
-          ? a.title.localeCompare(b.title)
-          : b.title.localeCompare(a.title);
-      },
-      function compareCoincidence(a: ICardData, b: ICardData) {
-        return orderDirection === "asc"
-          ? a.coincidenceRate - b.coincidenceRate
-          : b.coincidenceRate - a.coincidenceRate;
-      },
-    ];
-
-    const sortingFunction = sortingFunctions[orderOption];
-    const newData: ICardData[] = [...data];
-    newData.sort(sortingFunction);
-
-    return newData;
-  };
 
   const getNumberPages = (items: number) => {
     const numberOfPages =
@@ -70,25 +31,29 @@ const MainScreen = () => {
     return numberOfPages;
   };
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filter, orderOption, orderDirection]);
+
   const changePage = (event: any, value: number) => {
-    const from = (value - 1) * numberItems;
-    const to = from + numberItems;
-    const newData = filteredData.slice(from, to);
-    setSlicedData(newData);
-    setCurrentPage(value);
+    if (value >= 1 && value <= getNumberPages(filteredData.length)) {
+      setCurrentPage(value);
+    }
   };
 
-  const changeOrderOption = (id: number) => {
+  const changeOrderOption = useCallback((id: number) => {
     setOrderOption(id);
-  };
+  }, []);
 
-  const changeOrderDirection = () => {
-    setOrderDirection(orderDirection === "asc" ? "desc" : "asc");
-  };
+  const changeOrderDirection = useCallback(() => {
+    setOrderDirection((prevDirection) =>
+      prevDirection === "asc" ? "desc" : "asc"
+    );
+  }, []);
 
-  const changeFilter = (input: string) => {
+  const changeFilter = useCallback((input: string) => {
     setFilter(input);
-  };
+  }, []);
 
   return (
     <Box className="flex flex-1 items-center flex-col p-5 h-screen">
@@ -101,9 +66,12 @@ const MainScreen = () => {
         changeFilter={changeFilter}
       />
       <MainContent
-        dataInfo={slicedData}
+        dataInfo={filteredData.slice(
+          (currentPage - 1) * numberItems,
+          currentPage * numberItems
+        )}
         currentPage={currentPage}
-        numberPages={numberPages}
+        numberPages={getNumberPages(filteredData.length)}
         handleChangePage={changePage}
       />
     </Box>
